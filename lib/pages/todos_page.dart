@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:todo_app_provider/models/todo.dart';
-import 'package:todo_app_provider/providers/active_todo_count.dart';
 import 'package:todo_app_provider/providers/providers.dart';
 
 class TodosPage extends StatefulWidget {
@@ -87,14 +86,22 @@ class ShowTodos extends StatelessWidget {
                   );
                 });
           },
-          child: CheckboxListTile(
-            onChanged: (bool? value) {
-              if (value != null) {
+          child: ListTile(
+            leading: Checkbox(
+              value: todos[index].completed,
+              onChanged: (bool? value) {
                 context.read<TodoList>().toggleTodo(todos[index].id!);
-              }
+              },
+            ),
+            onTap: () {
+              context.read<TodoList>().toggleTodo(todos[index].id!);
             },
-            value: todos[index].completed,
-            controlAffinity: ListTileControlAffinity.leading,
+            onLongPress: () {
+              showDialog(
+                context: context,
+                builder: (dialogContext) => EditBoxDialog(todo: todos[index]),
+              );
+            },
             title: Text(
               todos[index].desc,
               style: Theme.of(context).textTheme.subtitle1!.copyWith(
@@ -118,6 +125,81 @@ class ShowTodos extends StatelessWidget {
   }
 }
 
+class EditBoxDialog extends StatefulWidget {
+  final Todo todo;
+  const EditBoxDialog({Key? key, required this.todo}) : super(key: key);
+
+  @override
+  _EditBoxDialogState createState() => _EditBoxDialogState();
+}
+
+class _EditBoxDialogState extends State<EditBoxDialog> {
+  late final TextEditingController controller;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    controller = TextEditingController(text: widget.todo.desc);
+    controller.addListener(_errorListener);
+    super.initState();
+  }
+
+  void _errorListener() {
+    if (controller.text.isEmpty) {
+      if (!_hasError) {
+        setState(() {
+          _hasError = true;
+        });
+      }
+    } else {
+      if (_hasError) {
+        setState(() {
+          _hasError = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    controller.removeListener(_errorListener);
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Edit Todo'),
+      content: TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          errorText: _hasError ? 'Value can\'t be empty' : null,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            if (!_hasError) {
+              context
+                  .read<TodoList>()
+                  .editTodo(widget.todo.id!, controller.text);
+              Navigator.pop(context);
+            }
+          },
+          child: Text('Update'),
+        ),
+      ],
+    );
+  }
+}
+
 class SearchAndFilterTodo extends StatelessWidget {
   const SearchAndFilterTodo({Key? key}) : super(key: key);
 
@@ -136,7 +218,7 @@ class SearchAndFilterTodo extends StatelessWidget {
             prefixIcon: Icon(Icons.search),
           ),
           onChanged: (String? newSearchTerm) {
-            if (newSearchTerm != null && newSearchTerm.isNotEmpty) {
+            if (newSearchTerm != null) {
               context.read<TodoSearch>().setSearchTerm(newSearchTerm);
             }
           },
